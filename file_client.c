@@ -84,6 +84,7 @@ void executeCommand()
 {
     mkfifo(customPipe, 0666);
     char str[80];
+    memset(str, '\0', sizeof(str));
     strcat(str, token[0]);
     strcat(str, " ");
     strcat(str, token[1]);
@@ -92,12 +93,19 @@ void executeCommand()
     int fd1 = open(customPipe, O_WRONLY);
     write(fd1, str, strlen(str) + 1);
     close(fd1);
+
+    char resp[500];
+    fd1 = open(customPipe, O_RDONLY);
+    read(fd1, resp, 500);
+    printf("--->>>%s\n", resp);
+    close(fd1);
 }
 
 void writeFile()
 {
+    printf("-write file\n");
     mkfifo(customPipe, 0666);
-    char str[80];
+    char str[200];
     strcat(str, token[0]);
     strcat(str, " ");
     strcat(str, token[1]);
@@ -107,6 +115,13 @@ void writeFile()
 
     int fd1 = open(customPipe, O_WRONLY);
     write(fd1, str, strlen(str) + 1);
+    close(fd1);
+
+    char resp[500];
+    printf("--->>>%s\n", resp);
+    fd1 = open(customPipe, O_RDONLY);
+    read(fd1, resp, 500);
+    printf("--->>>%s\n", resp);
     close(fd1);
 }
 
@@ -259,8 +274,8 @@ void printTokens()
 
 void sendExitMsg()
 {
-    int fd1 = open(named_pipe, O_WRONLY);
-    write(fd1, token[0], strlen(token[0]) + 1);
+    int fd1 = open(customPipe, O_WRONLY);
+    write(fd1, "exit", 5);
     close(fd1);
     exit(1);
 }
