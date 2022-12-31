@@ -14,10 +14,12 @@
 #define BUFFER 64
 #define MAX_IN 64
 
+#define AVG_LENGTH 64
+#define FILE_COUNT 10
+
 pthread_mutex_t mutexClientId;
 
 int clientCount = 0;
-int cli = 0;
 int portIdx = 0;
 int tokenCount = 0;
 int clientId = 0;
@@ -32,29 +34,27 @@ char *commPort;
 char commandInput[BUFFER];
 char *token[MAX_TOK];
 char *portList[5];
+char fileList[FILE_COUNT][50];
 
 pthread_t threadList[5];
 pthread_t listenThread;
-pthread_t comTh;
-pthread_t comTh2;
-int flag = 0;
-int connected[5];
 
 int task = 0;
 int done = 0;
 
 void deleteFile(char *fileName)
 {
-    if (remove(fileName) == 0)
+    char str[25];
+    strcpy(str, fileName);
+    printf("File deleted! %s\n", str);
+    if (remove(str) == 0)
     {
         printf("File deleted!\n");
     }
     else
     {
-        printf("Something wrong appened!\n");
+        printf("Something wrong happened!\n");
     }
-
-    return NULL;
 }
 
 void readFile(char *fileName)
@@ -83,7 +83,6 @@ void writeFile(char *fileName, char *data)
 {
     FILE *file = NULL;
     file = fopen(fileName, "a");
-
     if (file)
     {
         fputs(data, file);
@@ -107,46 +106,116 @@ void createFile(char *fileName)
     }
     else
     {
+        addFileList(fileName);
         fclose(file);
     }
 }
 
 void *handleClient(void *arg)
 {
-
-    printf("---->>>>>>%d\n", done < task);
     while (1)
     {
-        // pthread_mutex_lock(&mutexClientId);
-        printf("\nThread icinde THID: %d\n", comTh);
-        printf("\n\nListening Port%s...\n", portList[portIdx]);
-        int fd;
-        char arr1[80];
-        char *port = strdup(portList[portIdx]);
-        fd = open(port, O_RDONLY);
-        read(fd, arr1, 80);
-        printf("Thread icinde okundu: %s\n", arr1);
-        commandToToken(arr1, 80);
+        if (task < 6)
+        {
+            // pthread_mutex_lock(&mutexClientId);
+            printf("\nThread icinde THID: %d\n", portIdx);
+            printf("\nListening Port%s...\n", portList[portIdx]);
+            int fd;
+            char arr1[AVG_LENGTH];
+            char *port = strdup(portList[portIdx]);
+            fd = open(port, O_RDONLY);
+            read(fd, arr1, AVG_LENGTH);
+            printf("Thread Okundu: %s\n", arr1);
+            commandToToken(arr1, AVG_LENGTH);
 
-        if (token[2] != NULL)
-        {
-            chooseOperation(token[0], token[1], token[2]);
+            int operation = chooseOperation(token[0], token[1]);
+            int result = doTask(operation);
+            printTokens();
+            close(fd);
         }
-        else
-        {
-            chooseOperation(token[0], token[1], NULL);
-        }
-        close(fd);
+
         // pthread_mutex_unlock(&mutexClientId);
     }
     return NULL;
+}
+
+int doTask(int op)
+{
+    int fileExist = isFileExists(token[1]);
+    if (fileExist)
+    {
+        if (op == 0)
+        {
+            readFile(token[1]);
+            return 1;
+        }
+
+        if (op == 2)
+        {
+            deleteFile(token[1]);
+            int idx = findFileIndex(token[1]);
+            deleteFileList(idx);
+            return 1;
+        }
+        if (op == 3)
+        {
+            writeFile(token[1], token[2]);
+            return 1;
+        }
+    }
+    else
+    {
+        if (op == 1)
+        {
+            createFile(token[1]);
+            addFileList(token[1]);
+            return 1;
+        }
+    }
+}
+
+int isFileExists(char *file)
+{
+    for (int i = 0; i < FILE_COUNT; i++)
+    {
+        if (strcmp(fileList[i], file) == 0)
+            return 1;
+    }
+    return 0;
+}
+
+int findFileIndex(char *file)
+{
+    for (int i = 0; i < FILE_COUNT; i++)
+    {
+        if (strcmp(fileList[i], file) == 0)
+            return i;
+    }
+    return -1;
+}
+
+void addFileList(char *file)
+{
+    for (int i = 0; i < FILE_COUNT; i++)
+    {
+        if (strlen(fileList[i]) == 0)
+        {
+            strcpy(fileList[i], file);
+            break;
+        }
+    }
+}
+
+void deleteFileList(int index)
+{
+    strcpy(fileList[index], "");
 }
 
 void connection()
 {
     if (clientId < 5)
     {
-        //pthread_mutex_lock(&mutexClientId);
+        // pthread_mutex_lock(&mutexClientId);
         char str[2];
         char buff[35];
         char tempPort[30];
@@ -163,12 +232,11 @@ void connection()
         int fd1 = open(listenPort, O_WRONLY);
         write(fd1, buff, 35);
         close(fd1);
-        // printf("Client Broadcast: %s   %d    %d\n", buff, clientId, clientCount);
 
         portIdx = clientId;
         clientCount++;
         clientId++;
-        printf("Connect Info: %s   %d    \n", buff, (clientId - 1));
+        printf("Connection Info: %s   %d    \n", buff, (clientId - 1));
         // pthread_mutex_unlock(&mutexClientId);
     }
 }
@@ -177,23 +245,19 @@ void *listenClients(void *arg)
 {
     int fd;
     mkfifo(listenPort, 0666);
-    char arr1[80];
-    printf("\nListening port...\n");
+    char arr1[AVG_LENGTH];
 
     while (1)
     {
-        printf("\nListening port...\n");
+        printf("\nListening Port...\n");
         settings(commandInput, token);
         fd = open(listenPort, O_RDONLY);
-        read(fd, arr1, 80);
-        printf("Listen Port Reading: %s\n", arr1);
+        read(fd, arr1, AVG_LENGTH);
         close(fd);
-        printf("Con once\n");
         connection();
         task++;
         if (task > 0)
         {
-            printf(">>>>Task Oldu %d\n", task);
             pthread_create(threadList + task, NULL, handleClient, NULL);
         }
         printf("\n---------------------------------------------\n");
@@ -206,18 +270,12 @@ int main()
 {
 
     pthread_mutex_init(&mutexClientId, NULL);
-    memset(connected, 0, sizeof(connected));
+    settings();
     filesInit();
+    // printTokens();
     createPorts();
     pthread_create(&listenThread, NULL, listenClients, NULL);
     pthread_join(listenThread, &status);
-
-    // pthread_create(&comTh2, NULL, handleClient, NULL);
-    // pthread_join(comTh2, &status);
-    //
-
-    // createThreads(threadList);
-
     printf("cikti\n");
 
     return 0;
@@ -235,6 +293,23 @@ void createThreads(pthread_t threadList[])
     }
 }
 
+int handleError()
+{
+    return 0;
+}
+
+int commandLength(char *input)
+{
+    return strlen(input);
+}
+
+void settings()
+{
+    tokenCount = 0;
+    memset(commandInput, '\0', MAX_IN);
+    memset(token, '\0', sizeof(token));
+}
+
 void filesInit()
 {
     char *files[] = {"bir.txt", "iki.txt", "uc.txt", "dort.txt",
@@ -246,14 +321,40 @@ void filesInit()
         file = fopen(files[i], "a");
         if (file)
         {
+            strcpy(fileList[i], files[i]);
+            // printf(">filelist[%d] -> %s\n", i, fileList[i]);
             fclose(file);
         }
     }
 }
 
-int handleError()
+int chooseOperation(char *command, char *file)
 {
-    return 0;
+    if (strcmp(command, "read") == 0)
+    {
+        return 0;
+    }
+    if (strcmp(command, "create") == 0)
+    {
+        return 1;
+    }
+    if (strcmp(command, "delete") == 0)
+    {
+        return 2;
+    }
+    if (strcmp(command, "write") == 0)
+    {
+        return 3;
+    }
+}
+
+void createPorts()
+{
+    portList[0] = "/tmp/named_pipe_0";
+    portList[1] = "/tmp/named_pipe_1";
+    portList[2] = "/tmp/named_pipe_2";
+    portList[3] = "/tmp/named_pipe_3";
+    portList[4] = "/tmp/named_pipe_4";
 }
 
 int commandToToken(char *in, int length)
@@ -270,47 +371,14 @@ int commandToToken(char *in, int length)
     }
 }
 
-int commandLength(char *input)
+void printTokens()
 {
-    return strlen(input);
-}
-
-void settings()
-{
-    tokenCount = 0;
-    memset(commandInput, '\0', MAX_IN);
-    memset(token, '\0', sizeof(token));
-}
-
-void chooseOperation(char *command, char *file, char *data)
-{
-    if (strcmp(command, "read") == 0)
+    printf("\nPrint Files>>\n");
+    for (int i = 0; i < FILE_COUNT; i++)
     {
-        readFile(file);
+        if (strlen(fileList[i]) > 0)
+        {
+            printf("%d: %s\n", i, fileList[i]);
+        }
     }
-    if (strcmp(command, "create") == 0)
-    {
-        createFile(file);
-    }
-    if (strcmp(command, "delete") == 0)
-    {
-        deleteFile(file);
-    }
-    if (strcmp(command, "write") == 0)
-    {
-        writeFile(file, data);
-    }
-}
-
-void createPorts()
-{
-    portList[0] = "/tmp/named_pipe_0";
-    portList[1] = "/tmp/named_pipe_1";
-    portList[2] = "/tmp/named_pipe_2";
-    portList[3] = "/tmp/named_pipe_3";
-    portList[4] = "/tmp/named_pipe_4";
-}
-
-void createPipes()
-{
 }
