@@ -51,7 +51,7 @@ int task = 0;
 
 void deleteFile(char *fileName)
 {
-    pthread_mutex_lock(&file_lock);
+    //
     char str[40];
     memset(str, 0, sizeof(str));
     strcpy(str, fileName);
@@ -66,12 +66,12 @@ void deleteFile(char *fileName)
         printf("Something wrong happened!\n");
         deleteFlag = 0;
     }
-    pthread_mutex_unlock(&file_lock);
+    //(&file_lock);
 }
 
-void readFile(char *fileName)
+void readFile(char *fileName, char *port)
 {
-
+    pthread_mutex_lock(&file_lock);
     memset(response, 0, sizeof(response));
     FILE *file;
     char ch;
@@ -96,20 +96,22 @@ void readFile(char *fileName)
             line++;
         }
     }
-    printf("okuma bitti\n");
-    int fd1;
-    fd1 = open(portList[portIdx], O_WRONLY);
-    write(fd1, response, strlen(response) + 1);
-    close(fd1);
     fclose(file);
+    printf("okuma bitti\n");
+    int fd2;
+    fd2 = open(port, O_WRONLY);
+    printf("burda:  resp:%s>\n", response);
+    write(fd2, response, strlen(response) + 1);
+    close(fd2);
+    pthread_mutex_unlock(&file_lock);
 }
 
 void writeFile(char *fileName, char *data)
 {
     pthread_mutex_lock(&file_lock);
+
     FILE *file = NULL;
     file = fopen(fileName, "a");
-    writeFlag = 0;
     printf("dosya: %s    %s\n", fileName, data);
     if (file)
     {
@@ -129,7 +131,7 @@ void writeFile(char *fileName, char *data)
 
 void createFile(char *fileName)
 {
-    pthread_mutex_lock(&file_lock);
+    //
     FILE *file = NULL;
     file = fopen(fileName, "w");
 
@@ -143,18 +145,19 @@ void createFile(char *fileName)
         fclose(file);
         createFlag = 1;
     }
-    pthread_mutex_unlock(&file_lock);
+    //(&file_lock);
 }
 
 void *handleClient(void *arg)
 {
+    char port[30];
+    strcpy(port, arg);
     while (1)
     {
-        printf("\nListening Port%s...\n", portList[portIdx]);
+        printf("\nListening Port%s...\n", port);
         char arr1[AVG_LENGTH];
         memset(arr1, 0, sizeof(arr1));
 
-        char *port = strdup(portList[portIdx]);
         int fd = open(port, O_RDONLY);
         read(fd, arr1, AVG_LENGTH);
         printf("Thread Okundu: %s\n", arr1);
@@ -164,12 +167,14 @@ void *handleClient(void *arg)
         if (token[0] != NULL && strcmp(token[0], "exit") == 0)
         {
             printf("exited> %s\n", token[0]);
-            close(fd);
             break;
         }
-        int result = doTask();
+        // pthread_mutex_lock(&file_lock);
+        int result = doTask(port);
+        //printf("result -> %d,  %d,\n ", result, task);
         printFiles();
         sendMessage(result, port);
+        // pthread_mutex_unlock(&file_lock);
     }
     return NULL;
 }
@@ -179,10 +184,11 @@ void sendMessage(int operation, char *port)
     char msg[80];
     int fd1;
     memset(msg, 0, sizeof(msg));
+    printf("send mshg:%d \n", operation);
 
     if (operation == 1)
     {
-
+        printf("cikis:>\n");
         return 0;
     }
     else if (operation == -1)
@@ -196,7 +202,7 @@ void sendMessage(int operation, char *port)
     }
     else if (operation == -2)
     {
-        strcpy(msg, "Dosya olusturulurken hata olustu!");
+        strcpy(msg, "Dosya mevcut veya hatali!");
     }
     else if (operation == 3)
     {
@@ -224,7 +230,7 @@ void sendMessage(int operation, char *port)
     close(fd1);
 }
 
-int doTask()
+int doTask(char port[])
 {
     char fileName[20];
     strcpy(fileName, token[1]);
@@ -234,7 +240,7 @@ int doTask()
     {
         if (fileExist)
         {
-            readFile(token[1]);
+            readFile(fileName, port);
             readFlag = 1;
             return 1;
         }
@@ -280,43 +286,43 @@ int doTask()
 
 int isFileExists(char *file)
 {
-    // pthread_mutex_lock(&file_lock);
+    // //
     for (int i = 0; i < FILE_COUNT; i++)
     {
         if (strcmp(fileList[i], file) == 0)
         {
-            // pthread_mutex_unlock(&file_lock);
+            // //(&file_lock);
             return 1;
         }
     }
-    // pthread_mutex_unlock(&file_lock);
+    // //(&file_lock);
     return 0;
 }
 
 int findFileIndex(char *file)
 {
-    pthread_mutex_lock(&file_lock);
+    //
     for (int i = 0; i < FILE_COUNT; i++)
     {
         if (strcmp(fileList[i], file) == 0)
         {
-            pthread_mutex_unlock(&file_lock);
+            //(&file_lock);
             return i;
         }
     }
-    pthread_mutex_unlock(&file_lock);
+    //(&file_lock);
     return -1;
 }
 
 void addFileList(char *file)
 {
-    // pthread_mutex_lock(&file_lock);
+    // //
     for (int i = 0; i < FILE_COUNT; i++)
     {
         if (strlen(fileList[i]) == 0)
         {
             strcpy(fileList[i], file);
-            // pthread_mutex_unlock(&file_lock);
+            // //(&file_lock);
             break;
         }
     }
@@ -325,9 +331,9 @@ void addFileList(char *file)
 
 void deleteFileList(int index)
 {
-    pthread_mutex_lock(&file_lock);
+    //
     strcpy(fileList[index], "");
-    pthread_mutex_unlock(&file_lock);
+    //(&file_lock);
 }
 
 void connection()
@@ -372,7 +378,7 @@ void *listenClients(void *arg)
         task++;
         if (task > 0)
         {
-            pthread_create(threadList + task, NULL, handleClient, NULL);
+            pthread_create(threadList + task, NULL, handleClient, portList[portIdx]);
         }
         printf("\n---------------------------------------------\n");
     }

@@ -113,6 +113,7 @@ void writeFile()
 {
     mkfifo(customPipe, 0666);
     char str[200];
+    memset(str, 0, sizeof(str));
     strcat(str, token[0]);
     strcat(str, " ");
     strcat(str, token[1]);
