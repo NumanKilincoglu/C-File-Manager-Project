@@ -17,7 +17,7 @@
 #define MAX_LINE 200
 #define MAX_LEN 1000
 
-#define AVG_LENGTH 200
+#define AVG_LENGTH 1024
 #define FILE_COUNT 10
 
 pthread_mutex_t file_lock;
@@ -51,7 +51,6 @@ int task = 0;
 
 void deleteFile(char *fileName)
 {
-    //
     char str[40];
     memset(str, 0, sizeof(str));
     strcpy(str, fileName);
@@ -66,7 +65,6 @@ void deleteFile(char *fileName)
         printf("Something wrong happened!\n");
         deleteFlag = 0;
     }
-    //(&file_lock);
 }
 
 void readFile(char *fileName, char *port)
@@ -109,7 +107,6 @@ void readFile(char *fileName, char *port)
 void writeFile(char *fileName, char *data)
 {
     pthread_mutex_lock(&file_lock);
-
     FILE *file = NULL;
     file = fopen(fileName, "a");
     printf("dosya: %s    %s\n", fileName, data);
@@ -131,7 +128,7 @@ void writeFile(char *fileName, char *data)
 
 void createFile(char *fileName)
 {
-    //
+    pthread_mutex_lock(&file_lock);
     FILE *file = NULL;
     file = fopen(fileName, "w");
 
@@ -145,7 +142,7 @@ void createFile(char *fileName)
         fclose(file);
         createFlag = 1;
     }
-    //(&file_lock);
+    pthread_mutex_unlock(&file_lock);
 }
 
 void *handleClient(void *arg)
@@ -157,7 +154,6 @@ void *handleClient(void *arg)
         printf("\nListening Port%s...\n", port);
         char arr1[AVG_LENGTH];
         memset(arr1, 0, sizeof(arr1));
-
         int fd = open(port, O_RDONLY);
         read(fd, arr1, AVG_LENGTH);
         printf("Thread Okundu: %s\n", arr1);
@@ -169,12 +165,9 @@ void *handleClient(void *arg)
             printf("exited> %s\n", token[0]);
             break;
         }
-        // pthread_mutex_lock(&file_lock);
         int result = doTask(port);
-        //printf("result -> %d,  %d,\n ", result, task);
         printFiles();
         sendMessage(result, port);
-        // pthread_mutex_unlock(&file_lock);
     }
     return NULL;
 }
@@ -286,54 +279,43 @@ int doTask(char port[])
 
 int isFileExists(char *file)
 {
-    // //
     for (int i = 0; i < FILE_COUNT; i++)
     {
         if (strcmp(fileList[i], file) == 0)
         {
-            // //(&file_lock);
             return 1;
         }
     }
-    // //(&file_lock);
     return 0;
 }
 
 int findFileIndex(char *file)
 {
-    //
     for (int i = 0; i < FILE_COUNT; i++)
     {
         if (strcmp(fileList[i], file) == 0)
         {
-            //(&file_lock);
             return i;
         }
     }
-    //(&file_lock);
     return -1;
 }
 
 void addFileList(char *file)
 {
-    // //
     for (int i = 0; i < FILE_COUNT; i++)
     {
         if (strlen(fileList[i]) == 0)
         {
             strcpy(fileList[i], file);
-            // //(&file_lock);
             break;
         }
     }
-    printf("-->en sonda geldi add flie\n");
 }
 
 void deleteFileList(int index)
 {
-    //
     strcpy(fileList[index], "");
-    //(&file_lock);
 }
 
 void connection()
@@ -360,6 +342,12 @@ void connection()
         portIdx = clientId;
         clientId++;
     }
+    else
+    {
+        int fd1 = open(listenPort, O_WRONLY);
+        write(fd1, "Client limit exceeded!", 24);
+        close(fd1);
+    }
 }
 
 void *listenClients(void *arg)
@@ -376,7 +364,7 @@ void *listenClients(void *arg)
         close(fd);
         connection();
         task++;
-        if (task > 0)
+        if (task > 0 && task < 5)
         {
             pthread_create(threadList + task, NULL, handleClient, portList[portIdx]);
         }
@@ -389,7 +377,6 @@ void *listenClients(void *arg)
 int main()
 {
     pthread_mutex_init(&file_lock, NULL);
-    // filesInit();
     createPorts();
     pthread_create(&listenThread, NULL, listenClients, NULL);
     pthread_join(listenThread, &status);

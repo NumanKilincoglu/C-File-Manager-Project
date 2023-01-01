@@ -13,6 +13,8 @@
 #define BUFF_LEN 64
 #define MAX_TOKEN 32
 #define CLIENT_MAX_INPUT 64
+#define FIFO_LEN 1024
+
 
 char commandInput[BUFF_LEN];
 char *token[MAX_TOKEN];
@@ -90,10 +92,10 @@ void executeCommand()
     write(fd1, str, strlen(str) + 1);
     close(fd1);
 
-    char resp[500];
+    char resp[FIFO_LEN];
     memset(resp, 0, sizeof(resp));
     int fd2 = open(customPipe, O_RDONLY);
-    read(fd2, resp, 500);
+    read(fd2, resp, FIFO_LEN);
     printf("Server>>\n%s", resp);
     close(fd2);
 }
@@ -112,7 +114,7 @@ void printstr(char *str)
 void writeFile()
 {
     mkfifo(customPipe, 0666);
-    char str[200];
+    char str[FIFO_LEN];
     memset(str, 0, sizeof(str));
     strcat(str, token[0]);
     strcat(str, " ");
@@ -125,10 +127,10 @@ void writeFile()
     write(fd1, str, strlen(str) + 1);
     close(fd1);
 
-    char resp[500];
+    char resp[FIFO_LEN];
     memset(resp, 0, sizeof(resp));
     fd1 = open(customPipe, O_RDONLY);
-    read(fd1, resp, 500);
+    read(fd1, resp, FIFO_LEN);
     printf("Server>>\n%s", resp);
     close(fd1);
 }
