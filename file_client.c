@@ -28,18 +28,14 @@ void connectManager()
 {
     char buffer[35];
     char arr2[2];
-    printf("bagalnti oncesi %s \n", named_pipe);
     int fd = open(named_pipe, O_WRONLY);
-    write(fd, "baglanti", 9);
+    write(fd, "connection", 11);
     close(fd);
-    printf("bagalnti cikis\n");
-    printf("bagalnti gi1\n");
     int fd1 = open(named_pipe, O_RDONLY);
     read(fd1, buffer, 35);
     printf("Client Info: %s\n", buffer);
     close(fd1);
-    printf("bagalnti cikis1\n");
-
+    printf("Baglandi\n");
     responseToToken(buffer);
 }
 
@@ -51,7 +47,7 @@ int main()
     while (1)
     {
         settings(commandInput, token);
-        printf("\nClient >> ");
+        printf("\n\nClient >> ");
         if (readCommandLine(commandInput, CLIENT_MAX_INPUT))
         {
             commandToToken();
@@ -84,26 +80,37 @@ void executeCommand()
 {
     mkfifo(customPipe, 0666);
     char str[80];
-    memset(str, '\0', sizeof(str));
+    memset(str, 0, sizeof(str));
     strcat(str, token[0]);
     strcat(str, " ");
     strcat(str, token[1]);
     strcat(str, ".txt");
-    printf("custom pipe:%s  %s\n", customPipe, str);
+    // printf("custom pipe:%s  %s\n", customPipe, str);
     int fd1 = open(customPipe, O_WRONLY);
     write(fd1, str, strlen(str) + 1);
     close(fd1);
 
     char resp[500];
-    fd1 = open(customPipe, O_RDONLY);
-    read(fd1, resp, 500);
-    printf("--->>>%s\n", resp);
-    close(fd1);
+    memset(resp, 0, sizeof(resp));
+    int fd2 = open(customPipe, O_RDONLY);
+    read(fd2, resp, 500);
+    printf("Server>>\n%s", resp);
+    close(fd2);
+}
+
+void printstr(char *str)
+{
+
+    int i = 0;
+    while (str[i] != '\0')
+    {
+        printf("%d->[%d]:%c\n", str[i], i, str[i]);
+        i++;
+    }
 }
 
 void writeFile()
 {
-    printf("-write file\n");
     mkfifo(customPipe, 0666);
     char str[200];
     strcat(str, token[0]);
@@ -118,10 +125,10 @@ void writeFile()
     close(fd1);
 
     char resp[500];
-    printf("--->>>%s\n", resp);
+    memset(resp, 0, sizeof(resp));
     fd1 = open(customPipe, O_RDONLY);
     read(fd1, resp, 500);
-    printf("--->>>%s\n", resp);
+    printf("Server>>\n%s", resp);
     close(fd1);
 }
 
@@ -159,8 +166,6 @@ int responseToToken(char *response)
     }
 
     char *buffer = strdup(responseArray[0]);
-    // snprintf(buffer, 2, "%d", clientId);
-    clientID = strdup(responseArray[0]);
     customPipe = strdup(responseArray[1]);
 }
 
@@ -264,7 +269,7 @@ void print(char *input, int lineLength)
     printf("\n%d --> ", lineLength);
 }
 
-void printTokens()
+void printFiles()
 {
     for (int i = 0; i < tokenCount; i++)
     {
