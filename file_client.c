@@ -15,7 +15,6 @@
 #define CLIENT_MAX_INPUT 64
 #define FIFO_LEN 1024
 
-
 char commandInput[BUFF_LEN];
 char *token[MAX_TOKEN];
 char *responseArray[MAX_TOKEN];
@@ -33,6 +32,7 @@ void connectManager()
     int fd = open(named_pipe, O_WRONLY);
     write(fd, "connection", 11);
     close(fd);
+
     int fd1 = open(named_pipe, O_RDONLY);
     read(fd1, buffer, 35);
     printf("Client Info: %s\n", buffer);
@@ -87,28 +87,16 @@ void executeCommand()
     strcat(str, " ");
     strcat(str, token[1]);
     strcat(str, ".txt");
-    // printf("custom pipe:%s  %s\n", customPipe, str);
     int fd1 = open(customPipe, O_WRONLY);
     write(fd1, str, strlen(str) + 1);
     close(fd1);
 
-    char resp[FIFO_LEN];
-    memset(resp, 0, sizeof(resp));
+    char serverResponse[FIFO_LEN];
+    memset(serverResponse, 0, sizeof(serverResponse));
     int fd2 = open(customPipe, O_RDONLY);
-    read(fd2, resp, FIFO_LEN);
-    printf("Server>>\n%s", resp);
+    read(fd2, serverResponse, FIFO_LEN);
+    printf("Server>>\n%s", serverResponse);
     close(fd2);
-}
-
-void printstr(char *str)
-{
-
-    int i = 0;
-    while (str[i] != '\0')
-    {
-        printf("%d->[%d]:%c\n", str[i], i, str[i]);
-        i++;
-    }
 }
 
 void writeFile()
@@ -127,11 +115,11 @@ void writeFile()
     write(fd1, str, strlen(str) + 1);
     close(fd1);
 
-    char resp[FIFO_LEN];
-    memset(resp, 0, sizeof(resp));
+    char serverResponse[FIFO_LEN];
+    memset(serverResponse, 0, sizeof(serverResponse));
     fd1 = open(customPipe, O_RDONLY);
-    read(fd1, resp, FIFO_LEN);
-    printf("Server>>\n%s", resp);
+    read(fd1, serverResponse, FIFO_LEN);
+    printf("Server>>\n%s", serverResponse);
     close(fd1);
 }
 
@@ -286,4 +274,14 @@ void sendExitMsg()
     write(fd1, "exit", 5);
     close(fd1);
     exit(1);
+}
+
+void printstr(char *str)
+{
+    int i = 0;
+    while (str[i] != '\0')
+    {
+        printf("%d->[%d]:%c\n", str[i], i, str[i]);
+        i++;
+    }
 }

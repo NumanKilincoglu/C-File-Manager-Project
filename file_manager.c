@@ -74,7 +74,7 @@ void readFile(char *fileName, char *port)
     FILE *file;
     char ch;
     file = fopen(fileName, "r");
-    printf("okumaya basladi\n");
+
     if (NULL == file)
     {
         printf("File can't be opened!\n");
@@ -95,10 +95,8 @@ void readFile(char *fileName, char *port)
         }
     }
     fclose(file);
-    printf("okuma bitti\n");
     int fd2;
     fd2 = open(port, O_WRONLY);
-    printf("burda:  resp:%s>\n", response);
     write(fd2, response, strlen(response) + 1);
     close(fd2);
     pthread_mutex_unlock(&file_lock);
@@ -122,7 +120,6 @@ void writeFile(char *fileName, char *data)
         printf("Couldn' t write file! \n");
         writeFlag = 0;
     }
-    printf("write flag -->%d\n", writeFlag);
     pthread_mutex_unlock(&file_lock);
 }
 
@@ -149,24 +146,25 @@ void *handleClient(void *arg)
 {
     char port[30];
     strcpy(port, arg);
+    mkfifo(port, 0666);
     while (1)
     {
-        printf("\nListening Port%s...\n", port);
-        char arr1[AVG_LENGTH];
-        memset(arr1, 0, sizeof(arr1));
+        printf("\nListening Port -> '%s'\n", port, task);
+        char clientRequest[AVG_LENGTH];
+        memset(clientRequest, 0, sizeof(clientRequest));
         int fd = open(port, O_RDONLY);
-        read(fd, arr1, AVG_LENGTH);
-        printf("Thread Okundu: %s\n", arr1);
-        commandToToken(arr1, AVG_LENGTH);
-
+        printf("Read  pipe sonuc:%d\n", read(fd, clientRequest, AVG_LENGTH));
         close(fd);
+        printf("Log: Client Request: %s\n", clientRequest);
+        commandToToken(clientRequest, AVG_LENGTH);
+        printf("--->dokuldu2:\n");
         if (token[0] != NULL && strcmp(token[0], "exit") == 0)
         {
-            printf("exited> %s\n", token[0]);
+            printf("Log: Thread Exited> %s\n", token[0]);
             break;
         }
+
         int result = doTask(port);
-        printFiles();
         sendMessage(result, port);
     }
     return NULL;
@@ -177,19 +175,17 @@ void sendMessage(int operation, char *port)
     char msg[80];
     int fd1;
     memset(msg, 0, sizeof(msg));
-    printf("send mshg:%d \n", operation);
 
     if (operation == 1)
-    {
-        printf("cikis:>\n");
-        return 0;
+    { // read file messages
+        return;
     }
     else if (operation == -1)
     {
         strcpy(msg, "Dosya okunamadi veya bulunamadi!");
     }
 
-    else if (operation == 2) // create
+    else if (operation == 2) // create file messages
     {
         strcpy(msg, "Dosya olusturuldu!");
     }
@@ -197,7 +193,7 @@ void sendMessage(int operation, char *port)
     {
         strcpy(msg, "Dosya mevcut veya hatali!");
     }
-    else if (operation == 3)
+    else if (operation == 3) // delete file messages
     {
         strcpy(msg, "Dosya silindi!\n");
     }
@@ -205,7 +201,7 @@ void sendMessage(int operation, char *port)
     {
         strcpy(msg, "Dosya silinirken hata olustu!");
     }
-    else if (operation == 4)
+    else if (operation == 4) // write file messages
     {
         strcpy(msg, "Dosyaya yazildi!");
     }
@@ -219,16 +215,31 @@ void sendMessage(int operation, char *port)
     }
     fd1 = open(port, O_WRONLY);
     write(fd1, msg, strlen(msg) + 1);
-    printf("Mesaj gonderildi> %s\n", msg);
+    printf("Log: Client' a mesaj gonderildi>> %s %d\n", msg, operation);
     close(fd1);
 }
 
 int doTask(char port[])
 {
+    printf("-->%s -->%s\n", token[0], token[1]);
     char fileName[20];
-    strcpy(fileName, token[1]);
-    int fileExist = isFileExists(fileName);
+    if (token[0] == NULL)
+    {
+        strcpy(token[0], "");
+    }
 
+    if (token[1] == NULL)
+    {
+        strcpy(fileName, "");
+    }
+    else
+    {
+        strcpy(fileName, token[1]);
+    }
+
+    printf("-->\n");
+    int fileExist = isFileExists(fileName);
+    printf("----------------->%s %s\n", token[0], token[1]);
     if (strcmp(token[0], "read") == 0)
     {
         if (fileExist)
@@ -275,6 +286,7 @@ int doTask(char port[])
         writeFlag = 0;
         return -4;
     }
+    printf("--->dotask cikis %s:\n", port);
 }
 
 int isFileExists(char *file)
@@ -322,28 +334,26 @@ void connection()
 {
     if (clientId < 5)
     {
+        int fd1;
         char str[2];
         char buff[35];
         char tempPort[30];
         memset(tempPort, '\0', sizeof(tempPort));
         memset(buff, '\0', sizeof(buff));
-        memset(tempPort, '\0', sizeof(commPort));
-
         snprintf(str, 2, "%d", clientId);
         strcat(buff, str);
         strcpy(tempPort, portList[clientId]);
         strcat(buff, " ");
         strcat(buff, tempPort);
-
-        int fd1 = open(listenPort, O_WRONLY);
+        fd1 = open(listenPort, O_WRONLY);
         write(fd1, buff, 35);
         close(fd1);
-
         portIdx = clientId;
         clientId++;
     }
     else
     {
+        printf("limit-->\n");
         int fd1 = open(listenPort, O_WRONLY);
         write(fd1, "Client limit exceeded!", 24);
         close(fd1);
@@ -354,20 +364,20 @@ void *listenClients(void *arg)
 {
     int fd;
     mkfifo(listenPort, 0666);
-    char arr1[AVG_LENGTH];
+    char clientRequest[AVG_LENGTH];
 
     while (1)
     {
         printf("\nListening Port...\n");
         fd = open(listenPort, O_RDONLY);
-        read(fd, arr1, AVG_LENGTH);
+        read(fd, clientRequest, AVG_LENGTH);
         close(fd);
         connection();
-        task++;
-        if (task > 0 && task < 5)
+        if (task >= 0 && task < 5)
         {
             pthread_create(threadList + task, NULL, handleClient, portList[portIdx]);
         }
+        task++;
         printf("\n---------------------------------------------\n");
     }
     pthread_join(threadList + task, &status);
@@ -382,18 +392,6 @@ int main()
     pthread_join(listenThread, &status);
     printf("cikti\n");
     return 0;
-}
-
-void createThreads(pthread_t threadList[])
-{
-    for (int i = 0; i < threadCount; ++i)
-    {
-        pthread_create(threadList + i, NULL, handleClient, i);
-    }
-    for (int j = 0; j < threadCount; ++j)
-    {
-        pthread_join(threadList[j], &status);
-    }
 }
 
 int handleError()
@@ -412,24 +410,6 @@ void settings()
     memset(token, 0, sizeof(token));
 }
 
-void filesInit()
-{
-    char *files[] = {"bir.txt", "iki.txt", "uc.txt", "dort.txt",
-                     "bes.txt", "alti.txt", "yedi.txt",
-                     "sekiz.txt", "dokuz.txt", "on.txt"};
-    for (int i = 0; i < fileCount; i++)
-    {
-        FILE *file = NULL;
-        file = fopen(files[i], "a");
-        if (file)
-        {
-            strcpy(fileList[i], files[i]);
-            // printf(">filelist[%d] -> %s\n", i, fileList[i]);
-            fclose(file);
-        }
-    }
-}
-
 void createPorts()
 {
     portList[0] = "/tmp/named_pipe_0";
@@ -445,7 +425,7 @@ int commandToToken(char *in, int length)
     char *bufferArray = strdup(in);
     char *str = strtok(bufferArray, " ");
     settings();
-    // printstr(str);
+
     while (str != NULL)
     {
         tokenCount++;
@@ -477,7 +457,7 @@ void printstr(char *str)
     }
 }
 
-void printTokens1()
+void printTokens()
 {
     printf("\nPrint Tokens>>\n");
     for (int i = 0; i < tokenCount; i++)
