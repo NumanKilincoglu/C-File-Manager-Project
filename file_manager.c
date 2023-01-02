@@ -48,9 +48,11 @@ pthread_t threadList[5];
 pthread_t listenThread;
 
 int task = 0;
+int connectedClient = 0;
 
 void deleteFile(char *fileName)
 {
+    pthread_mutex_lock(&file_lock);
     char str[40];
     memset(str, 0, sizeof(str));
     strcpy(str, fileName);
@@ -65,6 +67,7 @@ void deleteFile(char *fileName)
         printf("Something wrong happened!\n");
         deleteFlag = 0;
     }
+    pthread_mutex_unlock(&file_lock);
 }
 
 void readFile(char *fileName, char *port)
@@ -142,32 +145,34 @@ void createFile(char *fileName)
     pthread_mutex_unlock(&file_lock);
 }
 
-void *handleClient(void *arg)
+void getThreadList()
 {
-    char port[30];
-    strcpy(port, arg);
-    mkfifo(port, 0666);
-    while (1)
+    for (int i = 0; i < 5; i++)
     {
-        printf("\nListening Port -> '%s'\n", port, task);
-        char clientRequest[AVG_LENGTH];
-        memset(clientRequest, 0, sizeof(clientRequest));
-        int fd = open(port, O_RDONLY);
-        printf("Read  pipe sonuc:%d\n", read(fd, clientRequest, AVG_LENGTH));
-        close(fd);
-        printf("Log: Client Request: %s\n", clientRequest);
-        commandToToken(clientRequest, AVG_LENGTH);
-        printf("--->dokuldu2:\n");
-        if (token[0] != NULL && strcmp(token[0], "exit") == 0)
+        if (threadList[i] == NULL)
         {
-            printf("Log: Thread Exited> %s\n", token[0]);
+            printf("%d] null\n");
+        }
+    }
+}
+
+int deleteThread(int i)
+{
+    printf("silinecek id: %d\n");
+    threadList[i] = NULL;
+}
+
+int findEmptyThreadSlot()
+{
+    for (int i = 0; i < 5; i++)
+    {
+        if (threadList[i] == NULL)
+        {
+            return i;
             break;
         }
-
-        int result = doTask(port);
-        sendMessage(result, port);
     }
-    return NULL;
+    return -1;
 }
 
 void sendMessage(int operation, char *port)
@@ -221,7 +226,6 @@ void sendMessage(int operation, char *port)
 
 int doTask(char port[])
 {
-    printf("-->%s -->%s\n", token[0], token[1]);
     char fileName[20];
     if (token[0] == NULL)
     {
@@ -237,9 +241,8 @@ int doTask(char port[])
         strcpy(fileName, token[1]);
     }
 
-    printf("-->\n");
     int fileExist = isFileExists(fileName);
-    printf("----------------->%s %s\n", token[0], token[1]);
+
     if (strcmp(token[0], "read") == 0)
     {
         if (fileExist)
@@ -286,7 +289,6 @@ int doTask(char port[])
         writeFlag = 0;
         return -4;
     }
-    printf("--->dotask cikis %s:\n", port);
 }
 
 int isFileExists(char *file)
@@ -315,6 +317,7 @@ int findFileIndex(char *file)
 
 void addFileList(char *file)
 {
+    pthread_mutex_lock(&file_lock);
     for (int i = 0; i < FILE_COUNT; i++)
     {
         if (strlen(fileList[i]) == 0)
@@ -323,11 +326,43 @@ void addFileList(char *file)
             break;
         }
     }
+    pthread_mutex_unlock(&file_lock);
 }
 
 void deleteFileList(int index)
 {
+    pthread_mutex_lock(&file_lock);
     strcpy(fileList[index], "");
+    pthread_mutex_unlock(&file_lock);
+}
+
+void *handleClient(void *arg)
+{
+    char port[30];
+    strcpy(port, arg);
+    mkfifo(port, 0666);
+    while (1)
+    {
+        printf("\nListening Port -> '%s'\n", port, task);
+        char clientRequest[AVG_LENGTH];
+        memset(clientRequest, 0, sizeof(clientRequest));
+        int fd = open(port, O_RDONLY);
+        printf("Read  pipe sonuc:%d\n", read(fd, clientRequest, AVG_LENGTH));
+        close(fd);
+        printf("Log: Client Request: %s\n", clientRequest);
+        commandToToken(clientRequest, AVG_LENGTH);
+
+        if (token[0] != NULL && strcmp(token[0], "exit") == 0)
+        {
+            printf("Log: Thread Exited> %s\n", token[0]);
+            task--;
+            break;
+        }
+
+        int result = doTask(port);
+        sendMessage(result, port);
+    }
+    return NULL;
 }
 
 void connection()
@@ -350,10 +385,10 @@ void connection()
         close(fd1);
         portIdx = clientId;
         clientId++;
+        connectedClient++;
     }
     else
     {
-        printf("limit-->\n");
         int fd1 = open(listenPort, O_WRONLY);
         write(fd1, "Client limit exceeded!", 24);
         close(fd1);
@@ -373,11 +408,13 @@ void *listenClients(void *arg)
         read(fd, clientRequest, AVG_LENGTH);
         close(fd);
         connection();
-        if (task >= 0 && task < 5)
+
+        if (connectedClient >= 1 && connectedClient < 6)
         {
             pthread_create(threadList + task, NULL, handleClient, portList[portIdx]);
+            task++;
         }
-        task++;
+
         printf("\n---------------------------------------------\n");
     }
     pthread_join(threadList + task, &status);
@@ -388,14 +425,9 @@ int main()
 {
     pthread_mutex_init(&file_lock, NULL);
     createPorts();
+    memset(threadList, NULL, sizeof(threadList));
     pthread_create(&listenThread, NULL, listenClients, NULL);
     pthread_join(listenThread, &status);
-    printf("cikti\n");
-    return 0;
-}
-
-int handleError()
-{
     return 0;
 }
 
@@ -448,7 +480,6 @@ void printFiles()
 
 void printstr(char *str)
 {
-
     int i = 0;
     while (str[i] != '\0')
     {
@@ -464,6 +495,4 @@ void printTokens()
     {
         printf("%d: %s\n", i, token[i]);
     }
-
-    printf("-->>>>>%c", strcmp(token[0], "write") == 0);
 }
