@@ -59,12 +59,12 @@ void deleteFile(char *fileName)
     deleteFlag = 0;
     if (remove(str) == 0)
     {
-        printf("File deleted!\n");
+        printf("LOG: File deleted!\n");
         deleteFlag = 1;
     }
     else
     {
-        printf("Something wrong happened!\n");
+        printf("LOG: Something wrong happened!\n");
         deleteFlag = 0;
     }
     pthread_mutex_unlock(&file_lock);
@@ -80,8 +80,7 @@ void readFile(char *fileName, char *port)
 
     if (NULL == file)
     {
-        printf("File can't be opened!\n");
-        handleError();
+        printf("LOG: File can't be opened!\n");
     }
 
     int line = 0;
@@ -110,7 +109,7 @@ void writeFile(char *fileName, char *data)
     pthread_mutex_lock(&file_lock);
     FILE *file = NULL;
     file = fopen(fileName, "a");
-    printf("dosya: %s    %s\n", fileName, data);
+
     if (file)
     {
         fputs(data, file);
@@ -145,37 +144,7 @@ void createFile(char *fileName)
     pthread_mutex_unlock(&file_lock);
 }
 
-void getThreadList()
-{
-    for (int i = 0; i < 5; i++)
-    {
-        if (threadList[i] == NULL)
-        {
-            printf("%d] null\n");
-        }
-    }
-}
-
-int deleteThread(int i)
-{
-    printf("silinecek id: %d\n");
-    threadList[i] = NULL;
-}
-
-int findEmptyThreadSlot()
-{
-    for (int i = 0; i < 5; i++)
-    {
-        if (threadList[i] == NULL)
-        {
-            return i;
-            break;
-        }
-    }
-    return -1;
-}
-
-void sendMessage(int operation, char *port)
+void sendMessage(int operation, char *port) // islem sonucunda client a gerekli bilgi mesajini gonderir
 {
     char msg[80];
     int fd1;
@@ -224,7 +193,7 @@ void sendMessage(int operation, char *port)
     close(fd1);
 }
 
-int doTask(char port[])
+int doTask(char port[]) // gelen komuta gore islemi yapar
 {
     char fileName[20];
     if (token[0] == NULL)
@@ -291,7 +260,7 @@ int doTask(char port[])
     }
 }
 
-int isFileExists(char *file)
+int isFileExists(char *file) // dosyanin varligini sorgular
 {
     for (int i = 0; i < FILE_COUNT; i++)
     {
@@ -303,7 +272,7 @@ int isFileExists(char *file)
     return 0;
 }
 
-int findFileIndex(char *file)
+int findFileIndex(char *file) // verilen dosyanin indexini bulur
 {
     for (int i = 0; i < FILE_COUNT; i++)
     {
@@ -315,7 +284,7 @@ int findFileIndex(char *file)
     return -1;
 }
 
-void addFileList(char *file)
+void addFileList(char *file) // file list e dosya ekler
 {
     pthread_mutex_lock(&file_lock);
     for (int i = 0; i < FILE_COUNT; i++)
@@ -329,29 +298,30 @@ void addFileList(char *file)
     pthread_mutex_unlock(&file_lock);
 }
 
-void deleteFileList(int index)
+void deleteFileList(int index) // dosyayi listeden siler
 {
     pthread_mutex_lock(&file_lock);
     strcpy(fileList[index], "");
     pthread_mutex_unlock(&file_lock);
 }
 
-void *handleClient(void *arg)
+void *handleClient(void *arg) // her client icin bir thread gelecek olan komutlari bekler
 {
     char port[30];
     strcpy(port, arg);
     mkfifo(port, 0666);
     while (1)
     {
-        printf("\nListening Port -> '%s'\n", port, task);
+        printf("\nListening Port -> '%s'\n", port);
         char clientRequest[AVG_LENGTH];
         memset(clientRequest, 0, sizeof(clientRequest));
         int fd = open(port, O_RDONLY);
-        printf("Read  pipe sonuc:%d\n", read(fd, clientRequest, AVG_LENGTH));
+        printf("Read pipe sonuc:%d\n", read(fd, clientRequest, AVG_LENGTH));
         close(fd);
         printf("Log: Client Request: %s\n", clientRequest);
         commandToToken(clientRequest, AVG_LENGTH);
 
+        // clienttan exit komutu geldiginde bu thread kapanir
         if (token[0] != NULL && strcmp(token[0], "exit") == 0)
         {
             printf("Log: Thread Exited> %s\n", token[0]);
@@ -365,7 +335,7 @@ void *handleClient(void *arg)
     return NULL;
 }
 
-void connection()
+void connection() // clientlar ile baglantiyi saglar
 {
     if (clientId < 5)
     {
@@ -395,7 +365,7 @@ void connection()
     }
 }
 
-void *listenClients(void *arg)
+void *listenClients(void *arg) // client in baglanmasini bekler
 {
     int fd;
     mkfifo(listenPort, 0666);
@@ -409,6 +379,7 @@ void *listenClients(void *arg)
         close(fd);
         connection();
 
+        // client baglanirsa yeni thread olusturur ve client i ona atar
         if (connectedClient >= 1 && connectedClient < 6)
         {
             pthread_create(threadList + task, NULL, handleClient, portList[portIdx]);
@@ -442,6 +413,7 @@ void settings()
     memset(token, 0, sizeof(token));
 }
 
+// port listesini olusturur
 void createPorts()
 {
     portList[0] = "/tmp/named_pipe_0";

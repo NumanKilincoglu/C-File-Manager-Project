@@ -25,7 +25,7 @@ char *clientID;
 int tokenCount = 0;
 int clientId;
 
-void connectManager()
+void connectManager() // manager ile pipe uzerindenbaglanti kurar
 {
     char buffer[35];
     char arr2[2];
@@ -43,12 +43,11 @@ void connectManager()
 
 int main()
 {
-
     connectManager();
 
     while (1)
     {
-        settings(commandInput, token);
+        settings(commandInput, token); // arrayleri resetler
         printf("\n\nClient >> ");
         if (readCommandLine(commandInput, CLIENT_MAX_INPUT))
         {
@@ -57,13 +56,13 @@ int main()
             switch (choice)
             {
             case 1:
-                sendExitMsg();
+                sendExitMsg(); // client exit oldugu zaman pipe ile manager a mesaj gonderir
                 break;
             case 2:
-                executeCommand();
+                executeCommand(); // read create delete komutlarini managera gonderir
                 break;
             case 3:
-                writeFile();
+                writeFile(); // write komutunu manager a gonderir ve cevap bekler
                 break;
             }
         }
@@ -91,7 +90,7 @@ void executeCommand()
     write(fd1, str, strlen(str) + 1);
     close(fd1);
 
-    char serverResponse[FIFO_LEN];
+    char serverResponse[FIFO_LEN]; // managerdan gelen donutu gosterir
     memset(serverResponse, 0, sizeof(serverResponse));
     int fd2 = open(customPipe, O_RDONLY);
     read(fd2, serverResponse, FIFO_LEN);
@@ -115,7 +114,7 @@ void writeFile()
     write(fd1, str, strlen(str) + 1);
     close(fd1);
 
-    char serverResponse[FIFO_LEN];
+    char serverResponse[FIFO_LEN]; // managerdan gelen donutu gosterir
     memset(serverResponse, 0, sizeof(serverResponse));
     fd1 = open(customPipe, O_RDONLY);
     read(fd1, serverResponse, FIFO_LEN);
@@ -258,14 +257,6 @@ void print(char *input, int lineLength)
         printf("%c", input[index++]);
     }
     printf("\n%d --> ", lineLength);
-}
-
-void printFiles()
-{
-    for (int i = 0; i < tokenCount; i++)
-    {
-        printf("\n%d: %s\n", i, token[i]);
-    }
 }
 
 void sendExitMsg()
